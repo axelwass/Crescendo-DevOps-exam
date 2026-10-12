@@ -26,6 +26,18 @@ variable "github_repository" {
   }
 }
 
+variable "github_owner_id" {
+  description = "Immutable numeric GitHub owner ID used in this repository's OIDC subject claim."
+  type        = string
+  default     = "784230"
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric GitHub repository ID used in OIDC subject claims."
+  type        = string
+  default     = "1415318943"
+}
+
 variable "github_oidc_provider_arn" {
   description = "ARN of an existing GitHub Actions OIDC provider. Leave null to create it in this bootstrap."
   type        = string
@@ -47,4 +59,5 @@ variable "application_name_prefix" {
 locals {
   state_bucket_name        = "${var.state_bucket_prefix}-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
   github_oidc_provider_arn = var.github_oidc_provider_arn != null ? data.aws_iam_openid_connect_provider.github[0].arn : aws_iam_openid_connect_provider.github[0].arn
+  github_oidc_subject      = "repo:${split("/", var.github_repository)[0]}@${var.github_owner_id}/${split("/", var.github_repository)[1]}@${var.github_repository_id}"
 }

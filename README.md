@@ -78,7 +78,7 @@ terraform -chdir=terraform/bootstrap apply
 
 The bootstrap creates a bucket named from the configured prefix, AWS account ID, and region. It enables versioning, server-side encryption, public-access blocking, and a bucket policy that denies non-TLS requests. The bucket has Terraform `prevent_destroy` protection.
 
-It also configures GitHub Actions OIDC and creates two IAM roles: a read-only plan role trusted for pull requests, and an administrator deployment role trusted only for pushes to `main`. Set `github_repository` if this is a fork or the repository has a different owner/name. AWS allows only one OIDC provider per issuer per account: if `https://token.actions.githubusercontent.com` already exists, pass its ARN with `-var="github_oidc_provider_arn=ARN"` when planning and applying bootstrap so Terraform reuses it.
+It also configures GitHub Actions OIDC and creates two IAM roles: a read-only plan role trusted for pull requests, and an administrator deployment role trusted only for pushes to `main`. The OIDC trust uses GitHub's immutable numeric owner/repository IDs as part of each subject claim; if you use another repository or owner, update `github_repository`, `github_owner_id`, and `github_repository_id`. AWS allows only one OIDC provider per issuer per account: if `https://token.actions.githubusercontent.com` already exists, pass its ARN with `-var="github_oidc_provider_arn=ARN"` when planning and applying bootstrap so Terraform reuses it.
 
 To check whether your account already has the provider:
 
