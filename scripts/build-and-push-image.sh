@@ -24,7 +24,6 @@ docker build \
 docker push "$ECR_REPOSITORY_URL:$IMAGE_TAG"
 
 printf 'Image pushed: %s:%s\n' "$ECR_REPOSITORY_URL" "$IMAGE_TAG"
-printf 'If terraform/terraform.tfvars already uses this image_tag, restart the service with:\n'
+printf 'Restart ECS to pull the new image:\n'
 printf '  aws ecs update-service --cluster %s --service %s --force-new-deployment --region %s\n' \
   "$ECS_CLUSTER" "$ECS_SERVICE" "$AWS_REGION"
-printf 'Otherwise set image_tag = "%s" in terraform/terraform.tfvars and run terraform apply.\n' "$IMAGE_TAG"

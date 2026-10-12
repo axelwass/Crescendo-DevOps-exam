@@ -1,0 +1,9 @@
+name: Apply Terraform
+description: Apply the main Terraform root with the pushed image tag.
+
+runs:
+  using: composite
+  steps:
+    - name: Apply Terraform
+      shell: bash
+      run: terraform -chdir=terraform apply -auto-approve -input=false -no-color -lock-timeout=5m

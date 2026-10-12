@@ -1,0 +1,25 @@
+name: Initialize Terraform backend
+description: Initialize Terraform using the shared S3 state and native lockfile.
+
+inputs:
+  state-bucket:
+    description: S3 bucket containing the Terraform state.
+    required: true
+  aws-region:
+    description: AWS region containing the state bucket.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Initialize Terraform
+      shell: bash
+      env:
+        STATE_BUCKET: ${{ inputs.state-bucket }}
+        AWS_REGION: ${{ inputs.aws-region }}
+      run: |
+        terraform -chdir=terraform init -input=false \
+          -backend-config="bucket=$STATE_BUCKET" \
+          -backend-config="key=magnolia/terraform.tfstate" \
+          -backend-config="region=$AWS_REGION" \
+          -backend-config="use_lockfile=true"

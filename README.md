@@ -134,30 +134,33 @@ Create a local Terraform variables file from the example. It is ignored by Git:
 
 ```sh
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars
-terraform -chdir=terraform plan
-terraform -chdir=terraform apply
+terraform -chdir=terraform init -backend-config=backend.hcl
 ```
 
-The initial apply creates the entire stack, including the ECS service. Before the Magnolia image exists in ECR, ECS will report image-pull failures; this is expected temporarily.
-
-Build and push the Magnolia image to the ECR repository created above. Use a unique tag for each deployment:
+Apply the full stack first. Terraform creates the ECR repository and ECS service; without an image in ECR, the task may report image-pull failures temporarily. Terraform does not wait for ECS steady state, so apply can complete. Then build and push the configured image tag:
 
 ```sh
+terraform -chdir=terraform plan
+terraform -chdir=terraform apply
 IMAGE_TAG=latest
-AWS_REGION=us-east-1 ./scripts/build-and-push-image.sh "$IMAGE_TAG"
+AWS_REGION=REGION ./scripts/build-and-push-image.sh "$IMAGE_TAG"
 ```
 
-The ECS service is already running and will retry the image pull. Force a new deployment after pushing the image:
+Use the same region as `aws_region` in `terraform/terraform.tfvars`. After pushing, force ECS to pull the new image:
 
 ```sh
 aws ecs update-service \
   --cluster "$(terraform -chdir=terraform output -raw ecs_cluster_name)" \
   --service "$(terraform -chdir=terraform output -raw ecs_service_name)" \
   --force-new-deployment \
-  --region "${AWS_REGION:-us-east-1}"
+  --region REGION
+aws ecs wait services-stable \
+  --cluster "$(terraform -chdir=terraform output -raw ecs_cluster_name)" \
+  --services "$(terraform -chdir=terraform output -raw ecs_service_name)" \
+  --region REGION
 ```
 
-For future releases, build and push a unique tag, update `image_tag` in the ignored variables file to match, then run `terraform apply` to update the task definition and service.
+For subsequent releases, pushing an updated `latest` image and forcing a new ECS deployment is sufficient. Alternatively, use unique tags by updating `image_tag` in `terraform/terraform.tfvars`, applying Terraform, then pushing that tag and restarting ECS.
 
 After the ECS task becomes healthy and CloudFront finishes deploying, get the site URL:
 
@@ -178,7 +181,7 @@ The initial Magnolia superuser and database passwords are generated and stored i
 
 ### Continuous integration
 
-The Terraform GitHub Actions workflow runs `terraform fmt`, `validate`, and `plan` on pull requests. Every push to `main` runs `terraform apply -auto-approve` (a no-op when there are no Terraform changes). Forked pull requests run formatting and validation but skip AWS planning.
+The GitHub Actions validation workflow runs `terraform fmt`, `validate`, and `plan` on pull requests. Forked pull requests run formatting and validation but skip AWS planning. On every push to `main`, the deployment workflow first applies the full Terraform stack (including ECR and ECS), then builds and pushes the image tagged `latest`, forces an ECS deployment, waits for ECS to become stable and CloudFront to finish deploying, and invalidates `/*`.
 
 Configure these repository variables under **Settings → Secrets and variables → Actions → Variables**:
 
@@ -189,17 +192,17 @@ Configure these repository variables under **Settings → Secrets and variables 
 
 In GitHub repository settings, protect the `main` branch by requiring a pull request and the `Format and validate` and `Plan infrastructure` checks before merging. The deployment workflow runs on pushes to `main`, so enforce pull requests to prevent direct pushes from deploying.
 
-The workflow uses GitHub OIDC; it does not store AWS access keys. The bootstrap role trust policies only accept this repository's pull-request identity for planning and its `main` branch identity for deployment. The deployment role is intentionally administrator-level for this demo; restrict the AWS account and protect `main` accordingly. Terraform apply provisions infrastructure but does not build or push the Magnolia Docker image; follow the image-push step above after the initial stack creates ECR.
+The workflows use GitHub OIDC; they do not store AWS access keys. The bootstrap role trust policies only accept this repository's pull-request identity for planning and its `main` branch identity for deployment. The deployment role is intentionally administrator-level for this demo; restrict the AWS account and protect `main` accordingly. Terraform does not wait for the ECS service to become healthy during apply because the image push happens afterward; the workflow explicitly restarts the service and waits for stability after pushing.
 
 ## Assumptions and limitations
 
 - **Single Magnolia task:** desired count is constrained to one. EFS is persistent storage, not Jackrabbit clustering; multiple active Magnolia tasks must not share this repository without a supported clustering design.
 - **Availability and cost:** one NAT Gateway and single-AZ RDS reduce the demo’s cost but are not a highly available production topology. Private subnet egress from both AZs shares the NAT Gateway.
 - **Origin protocol:** CloudFront redirects viewer traffic to HTTPS, but the CloudFront-to-ALB origin connection is HTTP because this demo does not assume a custom domain and ACM certificate. For production, provision a domain and certificate and use HTTPS to the origin.
-- **CloudFront caching:** Only Magnolia `/.resources/*` web resources and `/.imaging/*` generated image variations use a dedicated cache policy. It keys on the full query string, forwards no cookies or headers, defaults to a one-hour TTL, caps caching at one day, and permits the origin to set a shorter TTL or disable caching. All other routes, including pages and Magnolia admin requests, retain the caching-disabled default. This assumes those two resource paths serve public content; keep private or user-specific content out of them. No CloudFront invalidation is currently wired to Magnolia publishing, so updated resources or images may remain cached until their TTL expires.
+- **CloudFront caching:** Only Magnolia `/.resources/*` web resources and `/.imaging/*` generated image variations use a dedicated cache policy. It keys on the full query string, forwards no cookies or headers, defaults to a one-hour TTL, caps caching at one day, and permits the origin to set a shorter TTL or disable caching. All other routes, including pages and Magnolia admin requests, retain the caching-disabled default. This assumes those two resource paths serve public content; keep private or user-specific content out of them. The deployment workflow invalidates `/*` after code deployments; content-only publication through Magnolia does not trigger a CloudFront invalidation.
 - **ALB origin gate:** the ALB returns `403` unless the request has a random header configured on the CloudFront origin. The ALB has a public address, but does not forward requests without this header.
 - **Storage and backups:** RDS stores content and binaries; EFS holds filesystem-backed Jackrabbit metadata, configuration, indexes, and generated keys. EFS automatic backups are enabled, and RDS automated backups are retained for the configured period. A complete recovery requires both.
 - **Terraform state:** the main stack state and lockfile are in the encrypted, versioned S3 bucket. The one-time bootstrap state is local and must be secured and backed up separately.
-- **Image lifecycle:** ECR keeps the ten most recent images. Use unique image tags and update `image_tag` whenever deploying.
+- **Image lifecycle:** ECR keeps the ten most recent images. CI publishes the mutable `latest` tag and forces ECS to pull it after each push; manual releases can use unique tags with a matching Terraform `image_tag`.
 - **Infrastructure destruction:** `terraform destroy` deletes the RDS instance without a final snapshot and removes EFS. Export or back up data first. The Secrets Manager secret has a seven-day recovery window after deletion.
 - **Exam deviations:** ECS Fargate replaces the requested EC2 instance; RDS and EFS provide persistence; Nginx is omitted because ALB provides the required routing and health checks. A one-NAT, single-task design keeps the demonstration understandable but is not a production HA design.
