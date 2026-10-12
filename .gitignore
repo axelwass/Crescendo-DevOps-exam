@@ -24,3 +24,16 @@ hs_err_pid*
 replay_pid*
 /.local
 /.env
+/terraform/.terraform/
+/terraform/bootstrap/.terraform/
+/terraform/*.tfstate
+/terraform/*.tfstate.*
+/terraform/bootstrap/*.tfstate
+/terraform/bootstrap/*.tfstate.*
+/terraform/crash.log
+/terraform/bootstrap/crash.log
+/terraform/terraform.tfvars
+/terraform/backend.hcl
+/terraform/bootstrap/terraform.tfvars
+/terraform/*.tfplan
+/terraform/bootstrap/*.tfplan
