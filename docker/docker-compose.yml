@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: magnolia
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\""]
+      interval: 5s
+      retries: 10
+
+  magnolia:
+    build:
+      context: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/magnolia
+      DB_USER: ${DB_USER:?Set DB_USER in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MAGNOLIA_SUPERUSER_PASSWORD: ${MAGNOLIA_SUPERUSER_PASSWORD:?Set MAGNOLIA_SUPERUSER_PASSWORD in .env}
+    volumes:
+      - magnolia-data:/usr/local/tomcat/webapps/ROOT/repositories
+    ports:
+      - "${MAGNOLIA_HTTP_PORT:-8080}:8080"
+
+volumes:
+  pgdata:
+  magnolia-data:
