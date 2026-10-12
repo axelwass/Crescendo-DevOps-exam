@@ -1,0 +1,25 @@
+name: Format and validate Terraform
+description: Check formatting and validate the main Terraform root.
+
+runs:
+  using: composite
+  steps:
+    - name: Check formatting
+      shell: bash
+      run: terraform fmt -check -recursive
+
+    - name: Initialize providers
+      shell: bash
+      run: terraform -chdir=terraform init -backend=false -input=false
+
+    - name: Validate configuration
+      shell: bash
+      run: terraform -chdir=terraform validate -no-color
+
+    - name: Initialize bootstrap providers
+      shell: bash
+      run: terraform -chdir=terraform/bootstrap init -backend=false -input=false
+
+    - name: Validate bootstrap configuration
+      shell: bash
+      run: terraform -chdir=terraform/bootstrap validate -no-color

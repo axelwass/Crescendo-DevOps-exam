@@ -1,0 +1,57 @@
+name: Deploy Magnolia
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy Magnolia
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      TF_VAR_image_tag: latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: ./.github/actions/setup-terraform
+
+      - name: Configure AWS credentials
+        uses: ./.github/actions/configure-aws-credentials
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Initialize remote backend
+        uses: ./.github/actions/terraform-init-backend
+        with:
+          state-bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Apply infrastructure
+        uses: ./.github/actions/terraform-apply
+
+      - name: Build and push Magnolia image
+        uses: ./.github/actions/build-push-image
+        with:
+          image-tag: latest
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Restart ECS service
+        uses: ./.github/actions/restart-ecs-service
+
+      - name: Invalidate CloudFront cache
+        uses: ./.github/actions/cloudfront-invalidate

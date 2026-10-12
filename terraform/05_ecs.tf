@@ -186,6 +186,7 @@ resource "aws_ecs_service" "magnolia" {
   health_check_grace_period_seconds  = 600
   deployment_minimum_healthy_percent = 0
   deployment_maximum_percent         = 100
+  wait_for_steady_state              = false
 
   deployment_circuit_breaker {
     enable   = true

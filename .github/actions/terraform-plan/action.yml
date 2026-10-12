@@ -1,0 +1,9 @@
+name: Plan Terraform
+description: Generate a Terraform plan using the remote state.
+
+runs:
+  using: composite
+  steps:
+    - name: Create Terraform plan
+      shell: bash
+      run: terraform -chdir=terraform plan -input=false -no-color -lock-timeout=5m

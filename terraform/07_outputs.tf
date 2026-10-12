@@ -1,11 +1,16 @@
 output "ecr_repository_url" {
-  description = "Push the Magnolia image to this ECR repository before enabling the ECS service."
+  description = "ECR repository URL used by the Magnolia image build and push workflows."
   value       = aws_ecr_repository.magnolia.repository_url
 }
 
 output "cloudfront_url" {
   description = "Public CloudFront URL for Magnolia. It is available after the distribution deploys."
   value       = "https://${aws_cloudfront_distribution.main.domain_name}"
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID, used to invalidate cached content after deployment."
+  value       = aws_cloudfront_distribution.main.id
 }
 
 output "rds_address" {

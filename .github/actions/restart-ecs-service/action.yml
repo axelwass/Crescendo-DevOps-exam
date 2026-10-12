@@ -1,0 +1,26 @@
+name: Restart ECS service
+description: Force ECS to pull the newly pushed mutable image tag and wait for stability.
+
+runs:
+  using: composite
+  steps:
+    - name: Force a new ECS deployment
+      shell: bash
+      run: |
+        CLUSTER=$(terraform -chdir=terraform output -raw ecs_cluster_name)
+        SERVICE=$(terraform -chdir=terraform output -raw ecs_service_name)
+        aws ecs update-service \
+          --cluster "$CLUSTER" \
+          --service "$SERVICE" \
+          --force-new-deployment \
+          --region "$AWS_REGION"
+
+    - name: Wait for ECS service stability
+      shell: bash
+      run: |
+        CLUSTER=$(terraform -chdir=terraform output -raw ecs_cluster_name)
+        SERVICE=$(terraform -chdir=terraform output -raw ecs_service_name)
+        aws ecs wait services-stable \
+          --cluster "$CLUSTER" \
+          --services "$SERVICE" \
+          --region "$AWS_REGION"
